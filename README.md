@@ -2,6 +2,8 @@
 
 # Codex Image Blaster
 
+[![CI](https://github.com/exqqstar/codex-image-blaster/actions/workflows/ci.yml/badge.svg)](https://github.com/exqqstar/codex-image-blaster/actions/workflows/ci.yml)
+
 Codex Image Blaster turns a single image into an explorable 3D web scene. Codex
 drives the workflow, World Labs generates the static 3D space, and FAL-backed
 providers can optionally generate movable object models and sound effects.
