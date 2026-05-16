@@ -1,7 +1,7 @@
 <img width="960" height="540" alt="image-blaster-1" src="https://github.com/user-attachments/assets/d294e420-eb48-4f00-b6a8-13005442d1a8" />
 
 ## `image-blaster`
-Creates 3D environments, SFX, and meshes from a single image using Claude skills, World Labs, and FAL. 
+Creates 3D environments, SFX, and meshes from a single image using Codex skills, World Labs, and FAL.
 
 Can take you from an image to a fully meshed 3D environment in < 5 minutes, great for jumpstarting 3D work. Go full blast.
 
@@ -10,9 +10,11 @@ Can take you from an image to a fully meshed 3D environment in < 5 minutes, grea
 
 1. Open a Terminal, enter `git clone https://github.com/neilsonnn/image-blaster`
 2. Enter the directory with `cd image-blaster`
-3. Run `claude` (install with `curl -fsSL https://claude.ai/install.sh | bash`)
-4. Say hello to Claude, and give them your API key for [World Labs](https://platform.worldlabs.ai/) and [FAL](https://fal.ai/).
-5. Put an image into `input/` directory and ask Claude to `blast it and confirm each step with me`.
+3. Run `codex` from the repository root.
+4. Give Codex your API key for [World Labs](https://platform.worldlabs.ai/) and [FAL](https://fal.ai/), or add them to `.env` as `WORLD_LABS_API_KEY` and `FAL_KEY`.
+5. Put an image into `input/` and ask Codex to `blast it and confirm each step with me`.
+
+Codex replaces the orchestrator: it reads `AGENTS.md` and `.agents/skills/` to drive the workflow. Codex does not replace the 3D, world, image-edit, or audio providers themselves, so provider mode still requires the relevant World Labs and FAL credentials.
 
 ### Description
 
@@ -57,4 +59,6 @@ IMAGE-BLASTER uses a few generation models:
 
 ### Development
 
-- remove `/app` from the `.claudeignore` file to give Claude the ability to change the React viewer.
+- Codex project instructions live in `AGENTS.md`.
+- Codex repo skills live in `.agents/skills/`.
+- The first Codex adapter keeps using the existing `.claude/scripts/` provider scripts so the core asset pipeline stays stable.

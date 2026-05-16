@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'fs'
 import { spawn } from 'child_process'
+import type { IncomingMessage, ServerResponse } from 'http'
 
 type WorldManifest = Record<string, unknown> & {
   assets?: Record<string, unknown> & {
@@ -651,10 +652,10 @@ function worldsPlugin(): Plugin {
     return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   }
 
-  function openClaudeTerminal() {
+  function openCodexTerminal() {
     if (process.platform !== 'darwin') return false
 
-    const command = `cd ${shellQuote(repoRoot)} && claude`
+    const command = `cd ${shellQuote(repoRoot)} && codex`
     const child = spawn('osascript', [
       '-e',
       'tell application "Terminal"',
@@ -711,16 +712,18 @@ function worldsPlugin(): Plugin {
         res.setHeader('Content-Type', 'application/json')
         res.end(JSON.stringify(readWorlds()))
       })
-      server.middlewares.use('/__open-claude-terminal', (_req, res) => {
-        if (!openClaudeTerminal()) {
+      const openCodexTerminalHandler = (_req: IncomingMessage, res: ServerResponse) => {
+        if (!openCodexTerminal()) {
           res.statusCode = 501
-          res.end('Opening Claude terminal is only supported on macOS.')
+          res.end('Opening Codex terminal is only supported on macOS.')
           return
         }
 
         res.statusCode = 204
         res.end()
-      })
+      }
+      server.middlewares.use('/__open-codex-terminal', openCodexTerminalHandler)
+      server.middlewares.use('/__open-claude-terminal', openCodexTerminalHandler)
       server.middlewares.use('/__open-world-folder', (req, res) => {
         const requestUrl = new URL(req.url || '/', 'http://localhost')
         const slug = requestUrl.searchParams.get('slug')
