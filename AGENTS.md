@@ -103,6 +103,38 @@ Prefer check-ins after analysis and object confirmation. If the user asks for a
 full one-shot blast, keep going through the steps above and report the generated
 paths at the end.
 
+## Provider Cost Controls
+
+World Labs generation should be treated as the primary visual payoff. FAL object
+models and SFX are optional enhancements and can become expensive when run for
+every detected object.
+
+Before provider-heavy work, report:
+
+- which providers will be called,
+- which objects will be generated,
+- how many object assets are in scope,
+- what stop conditions will be used for authorization, quota, billing, or
+  repeated provider errors.
+
+Default to a world-first workflow:
+
+1. Analyze the image.
+2. Ask the user to confirm object candidates.
+3. Generate the clean plate and World Labs world.
+4. Let the user inspect the static world.
+5. Generate only approved, high-value object GLBs.
+6. Generate SFX last.
+
+Do not generate every detected object by default. For a first pass, recommend
+1-4 objects that are large, interactive, replaceable, or visually important.
+Skip small props unless the user explicitly chooses them.
+
+Run provider calls sequentially when the user is testing keys, when provider
+authorization is uncertain, or after any `403`, quota, or billing-related
+failure. Stop and report the failing provider and request metadata path instead
+of blindly retrying.
+
 ## Viewer
 
 The viewer is under `app/`. It reads the `worlds/` directory through the custom
@@ -135,4 +167,3 @@ valid provider keys.
   metadata is considered.
 - Preserve existing user-generated worlds and do not delete generated assets
   unless the user explicitly asks.
-

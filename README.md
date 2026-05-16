@@ -1,64 +1,140 @@
 <img width="960" height="540" alt="image-blaster-1" src="https://github.com/user-attachments/assets/d294e420-eb48-4f00-b6a8-13005442d1a8" />
 
-## `image-blaster`
-Creates 3D environments, SFX, and meshes from a single image using Codex skills, World Labs, and FAL.
+# Codex Image Blaster
 
-Can take you from an image to a fully meshed 3D environment in < 5 minutes, great for jumpstarting 3D work. Go full blast.
+Codex Image Blaster turns a single image into an explorable 3D web scene. Codex
+drives the workflow, World Labs generates the static 3D space, and FAL-backed
+providers can optionally generate movable object models and sound effects.
 
+This project is a Codex-first adapter of
+[neilsonnn/image-blaster](https://github.com/neilsonnn/image-blaster). The core
+asset protocol, provider scripts, and Three.js viewer are intentionally kept
+close to the original project; the main change is replacing the Claude
+orchestrator layer with Codex instructions and repo skills.
+
+Codex replaces the orchestrator, not the generation providers. World Labs, FAL,
+Hunyuan, Meshy, and audio providers still perform the actual asset generation.
+
+## What It Does
+
+The recommended workflow is world-first:
+
+1. Analyze a source image and create a project under `worlds/`.
+2. Generate a clean plate by removing foreground objects from the source image.
+3. Use World Labs Marble to generate the static 3D room as Gaussian splat
+   assets (`.spz`) plus preview images and metadata.
+4. Open the generated world in the browser viewer.
+5. Optionally choose a small number of important objects and generate GLB/OBJ
+   assets for interaction or placement.
+6. Optionally generate ambience and object sound effects.
+
+FAL object generation is powerful, but it is not the main product loop. For a
+first pass, generate the 3D space, inspect it, then pick only the objects that
+need to be movable, clickable, or replaced.
+
+## Requirements
+
+- Codex CLI
+- [Bun](https://bun.sh/) for installing dependencies and running the viewer
+- A World Labs API key for 3D world generation
+- A FAL API key for clean plates, image edits, object models, and SFX
+
+Provider calls can cost money. Codex is the orchestrator; it does not replace
+World Labs, FAL, Hunyuan, Meshy, or audio generation providers.
 
 ## Quickstart
 
-1. Open a Terminal, enter `git clone https://github.com/neilsonnn/image-blaster`
-2. Enter the directory with `cd image-blaster`
-3. Run `codex` from the repository root.
-4. Give Codex your API key for [World Labs](https://platform.worldlabs.ai/) and [FAL](https://fal.ai/), or add them to `.env` as `WORLD_LABS_API_KEY` and `FAL_KEY`.
-5. Put an image into `input/` and ask Codex to `blast it and confirm each step with me`.
+```bash
+git clone https://github.com/exqqstar/codex-image-blaster
+cd codex-image-blaster
+bun install
+cp .env.example .env
+```
 
-Codex replaces the orchestrator: it reads `AGENTS.md` and `.agents/skills/` to drive the workflow. Codex does not replace the 3D, world, image-edit, or audio providers themselves, so provider mode still requires the relevant World Labs and FAL credentials.
+Edit `.env`:
 
-### Description
+```bash
+WORLD_LABS_API_KEY=...
+FAL_KEY=...
+```
 
-By default `image-blaster` will use your input image to create:
+Put one image into `input/`, then run Codex from the repository root:
 
-1. 3D models (`.glb`, `.obj`) of all *dynamic* objects
-2. Gaussian splat (`.spz`) of the *static* environment,
-3. Ambient looping sound and object specific physics SFX (`.mp3`)
+```bash
+codex
+```
 
-### Extensions
+Recommended first prompt:
 
-You can embed `image-blaster` under the assets of *any game engine, DCC software, or web app*.
+```text
+Use image-blast-project and image-blast-uncover for the image in input/.
+Stop after analysis and show me the object candidates before calling providers.
+```
 
-1. Unity, Unreal, or Godot game engine
-2. Blender, 3DS Max, or Maya or other DCC software
-3. Three.js web app or Electron app
+Recommended world-only prompt:
 
-## Advanced
+```text
+Generate the clean plate and World Labs world for this project. Do not generate
+object GLBs or SFX yet.
+```
 
-IMAGE-BLASTER uses a few generation models:
+Recommended selective-object prompt:
 
-- `marble-1.1` - World Labs Marble model creates the explorable environment.
-- `nano-banana` - default image edit preference for source cleanup, clean plates, and object reference images.
-- `gpt-image-2` - alternate image edit provider when the edit skill is asked to prefer it.
-- `hunyuan-3d` - Hunyuan 3D model creates 3D object models through FAL.
-- `elevenlabs-sfx` - ElevenLabs sound effects model creates ambient and object-specific sounds.
+```text
+Generate GLB assets only for the desk, chair, lamp, and plant. Use sequential
+provider calls and stop if any provider returns an authorization or billing error.
+```
 
-3D model creation supports these Hunyuan parameters:
+Start the viewer:
 
-- `--face-count <40000-1500000>`: target face count. IMAGE-BLASTER defaults to `50000`; Hunyuan's API default is `500000`.
-- `--enable-pbr true|false`: enable PBR material generation. Defaults to `true`.
-- `--generate-type Normal|LowPoly|Geometry`: `Normal` creates a textured model, `LowPoly` applies polygon reduction, and `Geometry` creates a white geometry-only model. Defaults to `Normal`.
-- `--polygon-type triangle|quadrilateral`: polygon type for `LowPoly`. Defaults to `triangle`.
+```bash
+bun run dev
+```
 
-### Examples
+Open the route printed by Vite, usually `http://localhost:5173/<world-slug>`.
 
-- Video game level concepts? `IMAGE-BLAST` it.
-- Your childhood bedroom? `IMAGE-BLAST` it.
-- Need an environment for a robot? `IMAGE-BLAST` it.
-- A film location scout? `IMAGE-BLAST` it.
-- An architectural rendering? `IMAGE-BLAST` it.
+## Costs And Defaults
 
-### Development
+This repo should be used conservatively:
 
-- Codex project instructions live in `AGENTS.md`.
-- Codex repo skills live in `.agents/skills/`.
-- The first Codex adapter keeps using the existing `.claude/scripts/` provider scripts so the core asset pipeline stays stable.
+- Start with World Labs world generation.
+- Do not generate every detected object by default.
+- Pick 1-4 high-value objects for GLB generation.
+- Generate SFX last.
+- Prefer sequential provider calls when testing new keys.
+
+The common expensive mistake is approving every object candidate. A scene with
+books, mugs, picture frames, boxes, furniture, plants, and props can quickly turn
+into many image-edit and 3D-model calls. See [docs/COSTS.md](docs/COSTS.md).
+
+## Documentation
+
+- [Pipeline](docs/PIPELINE.md) explains the full image-to-world chain.
+- [Troubleshooting](docs/TROUBLESHOOTING.md) covers FAL 403s, viewer controls,
+  slow high-quality mode, and scene reset issues.
+- [Costs](docs/COSTS.md) explains provider roles and cost-control habits.
+- [AGENTS.md](AGENTS.md) documents the Codex project contract.
+
+## Development
+
+The first Codex adapter keeps using the existing `.claude/scripts/` provider
+scripts so the core asset pipeline stays stable. Codex project instructions live
+in `AGENTS.md`, and Codex repo skills live in `.agents/skills/`.
+
+Useful commands:
+
+```bash
+bun run typecheck
+WORLD_LABS_API_KEY=dummy FAL_KEY=dummy bun run test
+bun run build
+```
+
+The dummy-key test run only verifies local behavior. Real generation requires
+valid provider keys.
+
+## Attribution
+
+Codex Image Blaster is based on
+[neilsonnn/image-blaster](https://github.com/neilsonnn/image-blaster). The goal
+of this fork is to keep the original asset pipeline intact while making the
+workflow natural for Codex users.
