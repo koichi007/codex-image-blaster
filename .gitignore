@@ -20,3 +20,8 @@ app/.vite/
 
 # Internal design notes, plans, and scratch
 docs/plans/
+
+# IDE personal preferences
+.cursor/
+.vscode/
+.idea/
