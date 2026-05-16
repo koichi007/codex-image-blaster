@@ -17,3 +17,6 @@ app/.vite/
 
 # OS
 .DS_Store
+
+# Internal design notes, plans, and scratch
+docs/plans/
