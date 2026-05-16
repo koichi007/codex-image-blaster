@@ -41,7 +41,7 @@ describe('Codex adapter', () => {
       expect(content).toContain(`name: ${skill}`)
       expect(content).toContain('## Instructions')
       expect(content).toContain('node .claude/scripts/')
-      expect(content).not.toContain(['Agent', '('].join(''))
+      expect(content).not.toMatch(/\bAgent\(/)
     }
   })
 

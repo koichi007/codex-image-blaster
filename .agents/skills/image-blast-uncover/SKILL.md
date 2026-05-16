@@ -19,36 +19,81 @@ Use this skill for the no-cost image understanding and object-candidate phase.
 3. Follow the legacy JSON contract in
    `.claude/skills/image-blast-uncover/IMAGE-BLAST.md`.
 4. Analyze the latest visible source image in each indexed source family under
-   `worlds/<slug>/source/`.
-5. Write one sibling JSON file per analyzed source image:
+   `worlds/<slug>/source/`. Source images use indexed families
+   (`0-<slug>.<ext>`, `1-<slug>.png`, etc.); by default, analyze the latest
+   image in each family and do not treat every historical plate/edit as
+   separate evidence unless the user requests it.
+5. Treat existing `worlds/<slug>/source/<image-name>.json` files as reusable
+   analysis. If the source image or user instruction changed, update the
+   sibling JSON. If the user deleted a source image or its JSON, do not
+   recreate it unless the image still exists and should be analyzed.
+6. Write one sibling JSON file per analyzed source image:
 
    ```text
    worlds/<slug>/source/<image-name>.json
    ```
 
-6. Merge valid source analyses into:
-
-   ```text
-   worlds/<slug>/image.json
-   ```
-
+   Each per-image JSON must use the same flat schema as root `image.json` and
+   must not contain `images[]`.
 7. Use literal, technical language. Extract only cleanly segmentable physical
-   objects. Do not extract walls, floors, sky, terrain, fog, or fixed
-   architectural surfaces as standalone objects.
-8. Present the scene summary and object candidates to the user for approval.
-9. After approval, create or update one durable intent file per object:
+   objects:
+   - Separability test: a human could lift the item or move it by pushing it.
+   - Do not extract walls, floors, sky, terrain, fog, rugs, or fixed
+     architectural surfaces as standalone objects.
+   - Never group different items or create compound assets (no
+     "table-with-chairs", no "table including the objects on top").
+8. Merge valid source analyses into `worlds/<slug>/image.json` by:
+   - combining `source_images`
+   - synthesizing one shared `scene_name`, `short_caption`, and
+     `literal_description`
+   - merging `environment`, `visual_style`, `lighting`, `atmosphere`, and
+     `ambient_sound`
+   - deduplicating `objects` while preserving per-source evidence
+   - using the same flat schema as each per-image JSON; do not write `images[]`
+9. Present the scene summary and object candidates to the user for approval
+   (scene name, short caption, environment/style/lighting/atmosphere/ambient
+   sound, and object candidates with material and source-image evidence).
+10. After approval, create or update one durable intent file per object:
 
-   ```text
-   worlds/<slug>/output/<object-slug>/object.json
-   ```
+    ```text
+    worlds/<slug>/output/<object-slug>/object.json
+    ```
 
-10. `object.json` stores stable identity and provenance only. Do not write
-    generated status, jobs, request lifecycle, or output file lists there.
-11. Ask whether to create a clean plate unless the user asked for a one-shot
-    blast.
-12. Refresh state with:
+    Use this shape:
+
+    ```json
+    {
+      "schema_version": 1,
+      "world": "<slug>",
+      "object": {
+        "id": "<object-slug>",
+        "name": "<object name>",
+        "description": "<literal object description>",
+        "materials": [],
+        "source_images": [],
+        "evidence": [],
+        "generate_as_3d_object": true,
+        "working_dir": "worlds/<slug>/output/<object-slug>"
+      },
+      "updated_at": "..."
+    }
+    ```
+
+11. `object.json` stores stable identity, intent, and provenance only. Do not
+    write generated status, jobs, request lifecycle, or output file lists
+    there. Generated outputs and request state live beside `object.json` as
+    indexed visible artifacts and hidden request JSON.
+12. Handle the clean plate decision:
+    - In one-shot mode, continue with the `image-blast-plate` skill and wait
+      for it before world generation.
+    - Otherwise ask whether to remove confirmed objects (plus anything else
+      the user wants removed) to create a clean plate for world generation.
+13. Refresh state with:
 
     ```bash
     node .claude/scripts/project/project-state.mjs --world "<slug>"
     ```
+
+14. Report saved paths, source image count, per-image JSON count,
+    created/updated object directory count, and the clean plate decision.
 

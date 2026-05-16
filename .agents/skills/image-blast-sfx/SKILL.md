@@ -35,7 +35,12 @@ Use this skill for one sound request.
      --postprocess true
    ```
 
-   Add `--loop` only for ambience or explicit loop requests.
+   - Add `--loop` only for ambience or explicit loop requests.
+   - Avoid music or voices unless explicitly requested.
+   - For non-loop output the script runs `ffprobe`/`ffmpeg` to trim
+     leading/trailing silence, normalize loudness, and store `audio_analysis`
+     in the hidden request JSON. Loop output is left as raw provider audio so
+     the seamless boundary is preserved — that is why ambience uses `--loop`.
 6. Repair missing local audio files from request metadata when needed:
 
    ```bash

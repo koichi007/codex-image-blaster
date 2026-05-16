@@ -10,9 +10,19 @@ image-edit, 3D, and SFX flows.
 
 ## Instructions
 
+This skill runs in two modes:
+
+- **Discovery mode**: normal user requests. Do not run a paid FAL request,
+  call `run-fal.mjs`, or trigger any background execution until the user
+  confirms the exact endpoint.
+- **Execution mode**: prompts that start with
+  `CONFIRMED_FAL_ENDPOINT: <endpoint>`. Do not ask for model confirmation
+  again; validate inputs and run exactly one request.
+
 1. In discovery mode, do not run paid FAL requests until the user confirms one
-   exact endpoint.
-2. Discover candidates through the FAL Platform Model Search API:
+   exact endpoint by name (e.g. `confirm fal-ai/flux/dev`).
+2. Discover candidates through the FAL Platform Model Search API (not the
+   Explore page):
 
    ```text
    https://api.fal.ai/v1/models?q=<query>&status=active&limit=5
@@ -20,12 +30,23 @@ image-edit, 3D, and SFX flows.
    https://api.fal.ai/v1/models?endpoint_id=<endpoint>&expand=openapi-3.0
    ```
 
-3. Present endpoint candidates and ask the user to confirm one exact endpoint.
-4. In execution mode, after confirmation, build schema-shaped JSON inputs from
-   the user's literal request.
-5. For local files, pass them with `--file <schema_key>=<path>` so the helper
-   converts them to model input URLs.
-6. Run:
+   Use `https://fal.ai/docs/llms.txt` and individual model API docs only as
+   fallback context when the model search response is insufficient.
+3. Present the best candidate endpoint(s) with category, description, and any
+   relevant schema notes, then ask the user to confirm one exact endpoint.
+4. After confirmation, fetch the confirmed endpoint with `expand=openapi-3.0`,
+   then build schema-shaped JSON from the user's literal inputs. Use schema
+   defaults for optional fields. Ask only if a required field cannot be
+   inferred, a referenced local file is missing, or `FAL_KEY` is unavailable.
+5. Resolve the output directory contextually: from the user's request, the
+   active image-blast project/world, an input file's surrounding generated
+   output directory, or another clear local workflow context. Do not use a
+   dedicated wildcard directory by default. If no output location can be
+   inferred, ask before execution. Use `ls -a` before reading generated state.
+6. For local files, pass them with `--file <schema_key>=<path>` so the helper
+   converts them to model input URLs. Use dot paths for nested keys
+   (e.g. `image_urls.0`).
+7. Run:
 
    ```bash
    node .claude/scripts/fal/run-fal.mjs \
@@ -36,8 +57,9 @@ image-edit, 3D, and SFX flows.
      --user-prompt "<literal user request>"
    ```
 
-7. Add `--mode run` only when the FAL API page requires direct `fal.run`
-   behavior instead of the queue API.
+   The default queue mode persists request metadata before polling and
+   downloads any returned file URLs. Use `--mode run` only when the FAL API
+   page requires a direct `fal.run` call instead of the queue API.
 8. Repair missing local files from request metadata when needed:
 
    ```bash

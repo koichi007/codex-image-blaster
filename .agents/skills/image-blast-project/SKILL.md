@@ -20,6 +20,26 @@ generation.
    node .claude/scripts/project/project-state.mjs --world "<slug>" --stage-input
    ```
 
+   The helper creates and validates this envelope:
+
+   ```text
+   worlds/<slug>/
+     project.json
+     scene.json
+     image.json
+     source/
+       <image-name>.json
+     output/
+       world/
+       sfx/
+       <object-slug>/
+   ```
+
+   Only minimal `project.json` and directories are created automatically. The
+   `image-blast-uncover` skill writes per-image `source/<image-name>.json`
+   and root `image.json`, then waits for user confirmation before writing
+   per-object `output/<object-slug>/object.json` files.
+
 4. Report the printed state:
    - project slug and display name
    - moved files from `input/`
@@ -33,6 +53,15 @@ generation.
 5. If source images exist and `image.json` is missing, continue with the
    `image-blast-uncover` skill. If there are no source images, report the
    absolute `input/` path and ask the user to add images.
+
+6. Recommend downstream skills only after no-cost setup/analysis is
+   complete, in this order:
+   - `image-blast-plate` for clean plate/source cleanup after object
+     confirmation, when requested or one-shotting.
+   - `image-blast-world` for static 3D environment generation.
+   - `image-blast-3d` for per-object 3D model generation.
+   - `image-blast-sfx` for ambient, object-impact, or arbitrary sound effects.
+   - `image-blast-image-edit` for generic standalone prompt-based image edits.
 
 Do not call provider generation scripts from this skill.
 
