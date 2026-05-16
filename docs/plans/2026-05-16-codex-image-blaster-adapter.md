@@ -1,8 +1,8 @@
-# Codex Image Blaster Adapter Implementation Plan
+# Codex Image Blaster Adapter — Design Notes
 
-> **For Codex:** Execute this plan task-by-task. Keep the existing app, worlds
-> data protocol, and generation scripts intact unless a task explicitly says
-> otherwise.
+> Historical record of the design decisions behind this fork. The phases below
+> describe the original adapter rollout; the work in Phases 1–3 and 5 has
+> shipped. Phase 4 (script directory cleanup) is intentionally deferred.
 
 **Goal:** Adapt image-blaster so Codex can orchestrate the original image-blast
 workflow through `AGENTS.md` and `.agents/skills`.
