@@ -1,11 +1,12 @@
 import { Component, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, type ReactNode } from 'react'
 import { ThreeEvent, useFrame } from '@react-three/fiber'
 import { PositionalAudio } from '@react-three/drei'
-import { CuboidCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier'
+import { CuboidCollider, RigidBody, useRapier, type RapierRigidBody } from '@react-three/rapier'
 import * as THREE from 'three'
 import { ObjectRenderMode, type WorldObjectAsset, type WorldObjectPhysics } from '../../types/world'
 import { useAudioStore } from '../../store/audio'
 import { useSceneObjectVisual } from './useSceneObjectVisual'
+import { WORLD_COLLIDER_QUERY_TAG } from '../collider/WorldCollider'
 
 export const OBJECT_SCALE = 0.5
 const OBJECT_AUTO_ROTATE_Y_SPEED = 0.35
@@ -17,6 +18,17 @@ type HoverHandler = (event: ThreeEvent<PointerEvent>, objectId: string, hovering
 type ClickHandler = (worldPos: THREE.Vector3) => void
 
 const _rotation = new THREE.Quaternion()
+const _cameraDelta = new THREE.Vector3()
+const _runtimeFocusOffset = new THREE.Vector3()
+// Enable temporarily when inspecting gg01 follower ground-hit decisions.
+const GG01_FOLLOWER_TELEMETRY_ENABLED = false
+const TELEMETRY_INTERVAL_SECONDS = 0.5
+const TELEMETRY_MOVEMENT_DISTANCE_SQ = 0.0025
+// Probe from 0.5 above the current feet to 0.5 below them.
+const TELEMETRY_RAY_HEIGHT_ABOVE_FEET = 0.5
+const TELEMETRY_RAY_LENGTH = 1
+const FOLLOWER_MIN_SURFACE_NORMAL_Y = 0.9
+const FOLLOWER_MAX_HEIGHT_DIFFERENCE = 0.3
 export const SCENE_OBJECT_INSTANCE_ID_KEY = 'sceneObjectInstanceId'
 
 export interface SceneObjectHandle {
@@ -35,6 +47,7 @@ interface Props {
   rotation?: [number, number, number]
   scale?: [number, number, number]
   physics?: WorldObjectPhysics
+  runtimeCameraFollow?: boolean
   renderMode: ObjectRenderMode
   autoRotateY?: boolean
   onHover: HoverHandler
@@ -84,6 +97,7 @@ export const SceneObject = forwardRef<SceneObjectHandle, Props>(function SceneOb
     rotation = [0, 0, 0],
     scale = [1, 1, 1],
     physics = 'rigidbody',
+    runtimeCameraFollow = false,
     renderMode,
     autoRotateY = false,
     onHover,
@@ -96,11 +110,16 @@ export const SceneObject = forwardRef<SceneObjectHandle, Props>(function SceneOb
   ref,
 ) {
   const rigidBodyRef = useRef<RapierRigidBody>(null)
+  const runtimeGroupRef = useRef<THREE.Group>(null)
   const visualGroupRef = useRef<THREE.Group>(null)
   const colliderProxyRef = useRef<THREE.Mesh>(null)
   const sfxRefs = useRef<Array<THREE.PositionalAudio | null>>([])
   const lastSfxIndexRef = useRef<number | null>(null)
+  const previousCameraPositionRef = useRef<THREE.Vector3 | null>(null)
+  const lastTelemetryTimeRef = useRef(0)
+  const lastTelemetryPositionRef = useRef<THREE.Vector3 | null>(null)
   const muted = useAudioStore((s) => s.muted)
+  const { rapier, world } = useRapier()
   const isStatic = physics === 'static' || physics === 'ghost'
   const usesBoxCollider = physics === 'rigidbody' || physics === 'static'
   const initialPosition = useMemo(() => new THREE.Vector3(...position), [position])
@@ -134,10 +153,82 @@ export const SceneObject = forwardRef<SceneObjectHandle, Props>(function SceneOb
     fog: false,
   }), [])
 
-  useFrame((_, delta) => {
-    if (!autoRotateY || !visualGroupRef.current) return
-    visualGroupRef.current.rotation.y += delta * OBJECT_AUTO_ROTATE_Y_SPEED
+  useFrame((state, delta) => {
+    if (runtimeCameraFollow && runtimeGroupRef.current) {
+      const previousCameraPosition = previousCameraPositionRef.current
+      if (previousCameraPosition) {
+        runtimeGroupRef.current.position.add(_cameraDelta.subVectors(state.camera.position, previousCameraPosition).setY(0))
+      }
+      if (previousCameraPosition) previousCameraPosition.copy(state.camera.position)
+      else previousCameraPositionRef.current = state.camera.position.clone()
+
+      const runtimePosition = runtimeGroupRef.current.position
+      const girlYBefore = runtimePosition.y
+      const elapsed = state.clock.elapsedTime
+      const lastTelemetryPosition = lastTelemetryPositionRef.current
+      const movedSinceLastLog = !lastTelemetryPosition
+        || runtimePosition.distanceToSquared(lastTelemetryPosition) >= TELEMETRY_MOVEMENT_DISTANCE_SQ
+      const rayOrigin = {
+        x: runtimePosition.x,
+        y: runtimePosition.y + TELEMETRY_RAY_HEIGHT_ABOVE_FEET,
+        z: runtimePosition.z,
+      }
+      const hit = world.castRayAndGetNormal(
+        new rapier.Ray(rayOrigin, { x: 0, y: -1, z: 0 }),
+        TELEMETRY_RAY_LENGTH,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        (collider) => {
+          const userData = collider.parent()?.userData as Record<string, unknown> | undefined
+          return userData?.[WORLD_COLLIDER_QUERY_TAG] === true
+        },
+      )
+      const hitY = hit ? rayOrigin.y - hit.timeOfImpact : null
+      const heightDifference = hitY === null ? null : hitY - girlYBefore
+      const rejectionReason = !hit
+        ? 'no-world-collider-hit'
+        : !Number.isFinite(hitY) || !Number.isFinite(hit.normal.y)
+          ? 'non-finite-hit'
+          : hit.normal.y < FOLLOWER_MIN_SURFACE_NORMAL_Y
+            ? 'surface-not-upward-enough'
+            : Math.abs(heightDifference!) > FOLLOWER_MAX_HEIGHT_DIFFERENCE
+              ? 'height-difference-too-large'
+              : null
+      const accepted = rejectionReason === null && hitY !== null
+      if (accepted) runtimePosition.y = hitY
+      if (GG01_FOLLOWER_TELEMETRY_ENABLED && movedSinceLastLog && elapsed - lastTelemetryTimeRef.current >= TELEMETRY_INTERVAL_SECONDS) {
+        console.info('[gg01 follower telemetry]', {
+          girlX: runtimePosition.x,
+          girlY: runtimePosition.y,
+          girlYBefore,
+          girlZ: runtimePosition.z,
+          cameraY: state.camera.position.y,
+          hitY,
+          heightDifference,
+          accepted,
+          adoptedY: accepted ? hitY : null,
+          rejectionReason,
+          surfaceNormal: hit ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z } : null,
+          hitColliderHandle: hit?.collider.handle ?? null,
+          rayOriginY: rayOrigin.y,
+          rayLength: TELEMETRY_RAY_LENGTH,
+          queryTarget: 'WorldCollider only',
+        })
+        lastTelemetryTimeRef.current = elapsed
+        lastTelemetryPositionRef.current = runtimePosition.clone()
+      }
+    }
+    if (autoRotateY && visualGroupRef.current) {
+      visualGroupRef.current.rotation.y += delta * OBJECT_AUTO_ROTATE_Y_SPEED
+    }
   })
+
+  useEffect(() => {
+    previousCameraPositionRef.current = null
+  }, [runtimeCameraFollow])
 
   useEffect(() => {
     colliderWireframeMaterial.opacity = 0
@@ -213,12 +304,19 @@ export const SceneObject = forwardRef<SceneObjectHandle, Props>(function SceneOb
       initialRotation,
       bounds,
       getFocusPoint: (target) => {
+        if (runtimeGroupRef.current) {
+          return runtimeGroupRef.current.getWorldPosition(target).add(_runtimeFocusOffset.set(
+            colliderCenter.x * scale[0],
+            colliderCenter.y * scale[1],
+            colliderCenter.z * scale[2],
+          ))
+        }
         if (colliderProxyRef.current) return colliderProxyRef.current.getWorldPosition(target)
         return target.copy(initialPosition).add(colliderCenter)
       },
       playInteractionSfx: playRandomSfx,
     }),
-    [bounds, colliderCenter, initialPosition, initialRotation, object.id, playRandomSfx],
+    [bounds, colliderCenter, initialPosition, initialRotation, object.id, playRandomSfx, scale],
   )
 
   const visualContent = (
@@ -241,6 +339,14 @@ export const SceneObject = forwardRef<SceneObjectHandle, Props>(function SceneOb
       ))}
     </group>
   )
+
+  if (runtimeCameraFollow) {
+    return (
+      <group ref={runtimeGroupRef} position={position} rotation={rotation}>
+        {visualContent}
+      </group>
+    )
+  }
 
   return (
     <RigidBody

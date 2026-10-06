@@ -27,7 +27,10 @@ interface RenderedObject {
 interface Props {
   objects: WorldObjectAsset[]
   placements?: WorldObjectPlacement[]
+  worldSlug: string
 }
+
+const GG01_FOLLOWER_INSTANCE_ID = 'girl-with-randoseru-0'
 
 interface ObjectLoadErrorBoundaryProps {
   objectName: string
@@ -133,7 +136,7 @@ function nearestGrabbableObjectId(
   return grabbableObjectIds.has(fallbackObjectId) ? fallbackObjectId : null
 }
 
-export function ObjectGrid({ objects, placements }: Props) {
+export function ObjectGrid({ objects, placements, worldSlug }: Props) {
   const { camera, gl } = useThree()
   const [hoveredObjectId, setHoveredObjectId] = useState<string | null>(null)
   const renderedObjects = useMemo(() => resolveRenderedObjects(objects, placements), [objects, placements])
@@ -238,6 +241,7 @@ export function ObjectGrid({ objects, placements }: Props) {
             rotation={object.rotation}
             scale={object.scale}
             physics={object.physics}
+            runtimeCameraFollow={worldSlug === 'gg01' && object.instanceId === GG01_FOLLOWER_INSTANCE_ID}
             renderMode={objectRenderMode}
             onHover={handleHover}
             onPointerDown={(event) => onPointerDown(object.instanceId, event)}

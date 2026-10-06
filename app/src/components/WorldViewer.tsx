@@ -260,6 +260,7 @@ export function WorldViewer({
                 <ObjectGrid
                   objects={objectPhysicsAssets}
                   placements={objectPlacements}
+                  worldSlug={desiredSlug}
                 />
               </Suspense>
             )}

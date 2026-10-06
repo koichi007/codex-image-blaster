@@ -19,6 +19,8 @@ interface Props {
 }
 
 const ignoreRaycast: THREE.Object3D['raycast'] = () => {}
+export const WORLD_COLLIDER_QUERY_TAG = 'worldCollider'
+const worldColliderUserData = { [WORLD_COLLIDER_QUERY_TAG]: true }
 
 export function WorldCollider({ url, flipY, groundPlaneOffset, metricScaleFactor, shadowOpacity, shadowColor }: Props) {
   const { scene: rawScene } = useGLTF(url)
@@ -92,6 +94,7 @@ export function WorldCollider({ url, flipY, groundPlaneOffset, metricScaleFactor
         key={colliderTransformKey}
         type="fixed"
         colliders="trimesh"
+        userData={worldColliderUserData}
         rotation={[normalizedRotation, 0, 0]}
         position={[0, normalizedGroundPlaneOffset, 0]}
         scale={[normalizedMetricScaleFactor, normalizedMetricScaleFactor, normalizedMetricScaleFactor]}
